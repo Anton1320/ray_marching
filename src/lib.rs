@@ -53,6 +53,9 @@ impl Add<Vector3> for Vector3 {
 }
 
 impl Vector3{
+    pub fn new(x:f32, y:f32, z:f32) -> Vector3 {
+        Vector3{x:x, y:y, z:z}
+    }
     pub fn length(&self) -> f32 {
         (self.x.powf(2.) + self.y.powf(2.) + self.z.powf(2.)).sqrt()
     }
@@ -60,20 +63,104 @@ impl Vector3{
         let l = 1./self.length();
         Vector3 {x:self.x*l, y:self.y*l, z:self.z*l}
     }
+    pub fn abs(&self) -> Vector3 {
+        Vector3 {
+            x: self.x.abs(),
+            y: self.y.abs(),
+            z: self.z.abs(),
+        }
+    }
+    pub fn max(&self, a:f32) -> Vector3 {
+        Vector3 {
+            x: self.x.max(a),
+            y: self.y.max(a),
+            z: self.z.max(a),
+        }
+    }
+    pub fn min(&self, a:f32) -> Vector3 {
+        Vector3 {
+            x: self.x.min(a),
+            y: self.y.min(a),
+            z: self.z.min(a),
+        }
+    }
+    pub fn maxcomp(&self) -> f32 {
+        self.x.max(self.y.max(self.z))
+    }
 }
 
 pub struct Sphere {
-    center: Vector3,
-    r: f32,
+    pub center: Vector3,
+    pub r: f32,
+    pub color: Vector3,
 }
 
 impl Sphere {
-    pub fn normal(&self, point:Vector3) -> Vector3 {
-        
+    pub fn get_normal(&self, point:Vector3) -> Vector3 {
         (point-self.center).norm()
     }
     pub fn get_distance(&self, point:Vector3) -> f32 {
         (point-self.center).length() - self.r
+    }
+}
+
+pub struct Box {
+    pub pos:Vector3,
+    pub size: Vector3,
+    pub rotation:Vector3,
+    pub color: Vector3,
+}
+
+impl Box {
+    pub fn new(pos:Vector3, rot: Vector3, size:Vector3, color:Vector3) -> Box {
+        Box {
+            pos:pos,
+            rotation:rot,
+            size: size,
+            color: color,
+        }
+    }
+
+    pub fn rotate(&self, point:Vector3) -> Vector3 {
+        let mut p = point;
+        let mut p1 = point;
+        p.z = p1.z*self.rotation.x.cos()+p1.y*self.rotation.x.sin();
+        p.y = p1.z*self.rotation.x.sin()+p1.y*self.rotation.x.cos();
+        p1 = p;
+        //вокруг y
+        p.x = p1.x*self.rotation.y.cos()+p1.z*self.rotation.y.sin();
+        p.z = p1.x*self.rotation.y.sin()+p1.z*self.rotation.y.cos();
+        p1 = p;
+        //вокруг z
+        p.x = p1.x*self.rotation.z.cos()+p1.y*self.rotation.z.sin();
+        p.y = p1.x*self.rotation.z.sin()+p1.y*self.rotation.z.cos();
+        p
+    }
+
+    pub fn get_normal(&self, point:Vector3) -> Vector3 {
+        let p = self.rotate(point - self.pos);
+        let vectors = vec![
+            Vector3::new(1., 0., 0.),
+            Vector3::new(-1., 0., 0.),
+            Vector3::new(0., 1., 0.),
+            Vector3::new(0., -1., 0.),
+            Vector3::new(0., 0., 1.),
+            Vector3::new(0., 0., -1.)
+        ];
+        let mut a = Vector3::new(1., 0., 0.);
+        for i in vectors {
+            if (i*p).abs() < 0.1 {
+                a = i;
+                break;
+            }
+        }
+        self.rotate(a)
+    }
+    pub fn get_distance(&self, point:Vector3) -> f32 {
+        let p = self.rotate(point - self.pos);
+
+        let q = p.abs() - self.size;
+        q.max(0.).length() + q.maxcomp().min(0.)
     }
 }
 
