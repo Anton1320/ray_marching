@@ -8,7 +8,7 @@ fn main() {
     let cam = Camera {
         pos: Vector3::new(0., 0., 0.),
         screen_size: Vector3::new(4., 4., 0.),
-        screen_resolution: (100, 100),
+        screen_resolution: (128, 100),
         dist_to_screen: 2.,
         vector_to_screen: Vector3::new(1., 0., 0.),
         angle_vector_x: Vector3::new(0., 0., 1.),
@@ -24,7 +24,7 @@ fn main() {
 
     let mut cube = Box::new(Vector3::new(3.5, 0., 0.),
      Vector3::new(0., 3.14159265/5., 3.14159265/4.),
-      Vector3::new(1., 1., 1.),
+      Vector3::new(2., 1., 1.),
        Vector3::new(255., 255., 1.));
 
     let render_vectors = cam.get_render_vectors();
@@ -36,7 +36,7 @@ fn main() {
 
     //println!("{}", 1);
     let mut window: PistonWindow =
-        WindowSettings::new("Hello Piston!", [cam.screen_resolution.0 as u32, cam.screen_resolution.1 as u32])
+        WindowSettings::new("Ray marching", [cam.screen_resolution.0 as u32, cam.screen_resolution.1 as u32])
         .exit_on_esc(true).build().unwrap();
 
     while let Some(event) = window.next() {
