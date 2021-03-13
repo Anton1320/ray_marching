@@ -63,25 +63,18 @@ impl Vector3{
         let l = 1./self.length();
         Vector3 {x:self.x*l, y:self.y*l, z:self.z*l}
     }
-    pub fn abs(&self) -> Vector3 {
+    fn abs(&self) -> Vector3 {
         Vector3 {
             x: self.x.abs(),
             y: self.y.abs(),
             z: self.z.abs(),
         }
     }
-    pub fn max(&self, a:f32) -> Vector3 {
+    fn max(&self, a:f32) -> Vector3 {
         Vector3 {
             x: self.x.max(a),
             y: self.y.max(a),
             z: self.z.max(a),
-        }
-    }
-    pub fn min(&self, a:f32) -> Vector3 {
-        Vector3 {
-            x: self.x.min(a),
-            y: self.y.min(a),
-            z: self.z.min(a),
         }
     }
     pub fn maxcomp(&self) -> f32 {
@@ -121,24 +114,25 @@ impl Box {
         }
     }
 
-    pub fn rotate(&self, point:Vector3) -> Vector3 {
+    fn rotate_point(&self, point:Vector3, a:f32) -> Vector3 {
         let mut p = point;
         let mut p1 = point;
-        p.z = p1.z*self.rotation.x.cos()+p1.y*self.rotation.x.sin();
-        p.y = p1.z*self.rotation.x.sin()+p1.y*self.rotation.x.cos();
+        let angle = self.rotation*a;
+        p.z = p1.z*angle.x.cos()-p1.y*angle.x.sin();
+        p.y = p1.z*angle.x.sin()+p1.y*angle.x.cos();
         p1 = p;
         //вокруг y
-        p.x = p1.x*self.rotation.y.cos()+p1.z*self.rotation.y.sin();
-        p.z = p1.x*self.rotation.y.sin()+p1.z*self.rotation.y.cos();
+        p.x = p1.x*angle.y.cos()-p1.z*angle.y.sin();
+        p.z = p1.x*angle.y.sin()+p1.z*angle.y.cos();
         p1 = p;
         //вокруг z
-        p.x = p1.x*self.rotation.z.cos()+p1.y*self.rotation.z.sin();
-        p.y = p1.x*self.rotation.z.sin()+p1.y*self.rotation.z.cos();
+        p.x = p1.x*angle.z.cos()-p1.y*angle.z.sin();
+        p.y = p1.x*angle.z.sin()+p1.y*angle.z.cos();
         p
     }
 
     pub fn get_normal(&self, point:Vector3) -> Vector3 {
-        let p = self.rotate(point - self.pos);
+        let p = self.rotate_point(point - self.pos, -1.);
         let vectors = vec![
             Vector3::new(1., 0., 0.),
             Vector3::new(-1., 0., 0.),
@@ -148,16 +142,18 @@ impl Box {
             Vector3::new(0., 0., -1.)
         ];
         let mut a = Vector3::new(1., 0., 0.);
+        let mut m = -10000.;
         for i in vectors {
-            if (i*p).abs() < 0.1 {
+            let q = p*i;
+            if q > m {
+                m = q;
                 a = i;
-                break;
             }
         }
-        self.rotate(a)
+        self.rotate_point(a, 1.)
     }
     pub fn get_distance(&self, point:Vector3) -> f32 {
-        let p = self.rotate(point - self.pos);
+        let p = self.rotate_point(point - self.pos, -1.);
 
         let q = p.abs() - self.size;
         q.max(0.).length() + q.maxcomp().min(0.)
