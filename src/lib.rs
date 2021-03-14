@@ -77,9 +77,14 @@ impl Vector3{
             z: self.z.max(a),
         }
     }
-    pub fn maxcomp(&self) -> f32 {
+    fn maxcomp(&self) -> f32 {
         self.x.max(self.y.max(self.z))
     }
+}
+
+pub trait Figure {
+    fn get_normal(&self, point: Vector3) -> Vector3;
+    fn get_distance(&self, point: Vector3) -> f32;
 }
 
 pub struct Sphere {
@@ -88,17 +93,12 @@ pub struct Sphere {
     pub color: Vector3,
 }
 
-impl Sphere {
-    pub fn get_normal(&self, point:Vector3) -> Vector3 {
+impl Figure for Sphere {
+    fn get_normal(&self, point:Vector3) -> Vector3 {
         (point-self.center).norm()
     }
-    pub fn get_distance(&self, point:Vector3) -> f32 {
+    fn get_distance(&self, point:Vector3) -> f32 {
         (point-self.center).length() - self.r
-        //let mut p = point;
-        //p.x = (p.x % 4. + 4.) % 4.;
-        //p.y = (p.y % 4. + 4.) % 4.;
-        //p.z = (p.z % 4. + 4.) % 4.;
-        //(p-self.center).length() - self.r
     }
 }
 
@@ -118,7 +118,6 @@ impl Box {
             color: color,
         }
     }
-
     fn rotate_point(&self, point:Vector3, a:f32) -> Vector3 {
         let mut p = point;
         let mut p1 = point;
@@ -135,8 +134,9 @@ impl Box {
         p.y = p1.x*angle.z.sin()+p1.y*angle.z.cos();
         p
     }
-
-    pub fn get_normal(&self, point:Vector3) -> Vector3 {
+}
+impl Figure for Box {
+    fn get_normal(&self, point:Vector3) -> Vector3 {
         let p = self.rotate_point(point - self.pos, -1.) - self.size;
         let mut a = Vector3::new(0., 0., -1.);
         if p.x.abs() < 0.01 { a = Vector3::new(1., 0., 0.); }
@@ -147,7 +147,7 @@ impl Box {
         else if (p.z + 2.*self.size.z).abs() < 0.01 { a = Vector3::new(0., 0., -1.); }
         self.rotate_point(a, 1.)
     }
-    pub fn get_distance(&self, point:Vector3) -> f32 {
+    fn get_distance(&self, point:Vector3) -> f32 {
         let p = self.rotate_point(point - self.pos, -1.);
 
         let q = p.abs() - self.size;
