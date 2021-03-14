@@ -83,8 +83,15 @@ impl Vector3{
 }
 
 pub trait Figure {
-    fn get_normal(&self, point: Vector3) -> Vector3;
     fn get_distance(&self, point: Vector3) -> f32;
+    fn get_normal(&self, point: Vector3) -> Vector3 {
+        const EPS: f32 = 0.001;
+        let d = self.get_distance(point);
+        let dx = self.get_distance(point + Vector3::new(EPS, 0., 0.));
+        let dy = self.get_distance(point + Vector3::new(0., EPS, 0.));
+        let dz = self.get_distance(point + Vector3::new(0., 0., EPS));
+        (Vector3::new(dx, dy, dz) - Vector3::new(d, d, d)) * (1. / EPS)
+    }
 }
 
 pub struct Sphere {
@@ -94,9 +101,6 @@ pub struct Sphere {
 }
 
 impl Figure for Sphere {
-    fn get_normal(&self, point:Vector3) -> Vector3 {
-        (point-self.center).norm()
-    }
     fn get_distance(&self, point:Vector3) -> f32 {
         (point-self.center).length() - self.r
     }
@@ -136,17 +140,6 @@ impl Box {
     }
 }
 impl Figure for Box {
-    fn get_normal(&self, point:Vector3) -> Vector3 {
-        let p = self.rotate_point(point - self.pos, -1.) - self.size;
-        let mut a = Vector3::new(0., 0., -1.);
-        if p.x.abs() < 0.01 { a = Vector3::new(1., 0., 0.); }
-        else if (p.x + 2.*self.size.x).abs() < 0.01 { a = Vector3::new(-1., 0., 0.); }
-        else if p.y.abs() < 0.01 { a = Vector3::new(0., 1., 0.); }
-        else if (p.y + 2.*self.size.y).abs() < 0.01 { a = Vector3::new(0., -1., 0.); }
-        else if p.z.abs() < 0.01 { a = Vector3::new(0., 0., 1.); }
-        else if (p.z + 2.*self.size.z).abs() < 0.01 { a = Vector3::new(0., 0., -1.); }
-        self.rotate_point(a, 1.)
-    }
     fn get_distance(&self, point:Vector3) -> f32 {
         let p = self.rotate_point(point - self.pos, -1.);
 
