@@ -94,6 +94,11 @@ impl Sphere {
     }
     pub fn get_distance(&self, point:Vector3) -> f32 {
         (point-self.center).length() - self.r
+        //let mut p = point;
+        //p.x = (p.x % 4. + 4.) % 4.;
+        //p.y = (p.y % 4. + 4.) % 4.;
+        //p.z = (p.z % 4. + 4.) % 4.;
+        //(p-self.center).length() - self.r
     }
 }
 
@@ -135,11 +140,11 @@ impl Box {
         let p = self.rotate_point(point - self.pos, -1.) - self.size;
         let mut a = Vector3::new(0., 0., -1.);
         if p.x.abs() < 0.01 { a = Vector3::new(1., 0., 0.); }
-        else if (p.x + 2.*self.size.x).abs() < 0.1 { a = Vector3::new(-1., 0., 0.); }
+        else if (p.x + 2.*self.size.x).abs() < 0.01 { a = Vector3::new(-1., 0., 0.); }
         else if p.y.abs() < 0.01 { a = Vector3::new(0., 1., 0.); }
-        else if (p.y + 2.*self.size.y).abs() < 0.1 { a = Vector3::new(0., -1., 0.); }
+        else if (p.y + 2.*self.size.y).abs() < 0.01 { a = Vector3::new(0., -1., 0.); }
         else if p.z.abs() < 0.01 { a = Vector3::new(0., 0., 1.); }
-        else if (p.z + 2.*self.size.z).abs() < 0.1 { a = Vector3::new(0., 0., -1.); }
+        else if (p.z + 2.*self.size.z).abs() < 0.01 { a = Vector3::new(0., 0., -1.); }
         self.rotate_point(a, 1.)
     }
     pub fn get_distance(&self, point:Vector3) -> f32 {
