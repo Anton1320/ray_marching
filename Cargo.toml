@@ -10,3 +10,4 @@ edition = "2018"
 [dependencies]
 piston_window = "0.93.0"
 image = "0.21.1"
+piston = "*"
