@@ -1,4 +1,6 @@
 use std::ops::{Mul, Rem, Sub, Add};
+extern crate piston_window;
+use piston_window::*;
 #[derive(Copy, Clone)]
 pub struct Vector3 {
     pub x: f32,
@@ -13,6 +15,13 @@ impl Rem<Vector3> for Vector3{
             y:self.z*a.x-self.x*a.z,
             z:self.x*a.y-self.y*a.x,
         }
+    }
+}
+
+impl Rem<f32> for Vector3 {
+    type Output = Vector3;
+    fn rem(self, a:f32) -> Vector3 {
+        Vector3::new(self.x%a, self.y%a, self.z%a)
     }
 }
 
@@ -63,7 +72,7 @@ impl Vector3{
         let l = 1./self.length();
         Vector3 {x:self.x*l, y:self.y*l, z:self.z*l}
     }
-    fn abs(&self) -> Vector3 {
+    pub fn abs(&self) -> Vector3 {
         Vector3 {
             x: self.x.abs(),
             y: self.y.abs(),
@@ -85,12 +94,22 @@ impl Vector3{
 pub trait Figure {
     fn get_distance(&self, point: Vector3) -> f32;
     fn get_normal(&self, point: Vector3) -> Vector3 {
-        const EPS: f32 = 0.001;
+        const EPS: f32 = 0.0001;
         let d = self.get_distance(point);
         let dx = self.get_distance(point + Vector3::new(EPS, 0., 0.));
         let dy = self.get_distance(point + Vector3::new(0., EPS, 0.));
         let dz = self.get_distance(point + Vector3::new(0., 0., EPS));
-        (Vector3::new(dx, dy, dz) - Vector3::new(d, d, d)) * (1. / EPS)
+        ((Vector3::new(dx, dy, dz) - Vector3::new(d, d, d)) * (1. / EPS)).norm()
+    }
+}
+
+pub struct Translator {
+    
+}
+
+impl Translator {
+    fn new(figure: &dyn Figure, rot: Vector3) -> Translator {
+        Translator{}
     }
 }
 
@@ -186,5 +205,18 @@ impl Camera {
             }
         }
         out
+    }
+    pub fn move_pos(&mut self, btn: Button) {    
+        if let Button::Keyboard(i) = btn {
+            match i {
+                Key::W => self.pos.x += 1.,
+                Key::S => self.pos.x -= 1.,
+                Key::D => self.pos.z += 1.,
+                Key::A => self.pos.z -= 1.,
+                Key::LShift => self.pos.y += 1.,
+                Key::Space => self.pos.y -= 1.,
+                _ => (),
+            }
+        }
     }
 }
