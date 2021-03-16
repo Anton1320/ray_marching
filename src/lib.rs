@@ -180,9 +180,25 @@ pub struct Camera {
     pub dist_to_screen: f32, // расстояние от центра экрана до камеры
     pub vector_to_screen: Vector3, // нормированный вектор из камеры, указывающий на центр экрана
     pub angle_vector_x: Vector3, // нормированный вектор из центра экрана в середину правой стороны экрана
+    move_vec: Vector3,
+    speed:f32,
 }
 
 impl Camera {
+    pub fn new(pos:Vector3, screen_size:Vector3, screen_resolution:(usize, usize), dist_to_screen: f32,
+                vector_to_screen: Vector3, angle_vector_x: Vector3) -> Camera {
+        Camera {
+            pos:pos,
+            screen_size:screen_size,
+            screen_resolution: screen_resolution,
+            dist_to_screen: dist_to_screen,
+            vector_to_screen: vector_to_screen,
+            angle_vector_x: angle_vector_x,
+            move_vec: Vector3::new(0., 0., 0.),
+            speed: 0.1,
+        }
+
+    }
     pub fn get_screen(&self) -> Screen {
         let v_x = self.angle_vector_x*self.screen_size.x;
         let v_y = (v_x%self.vector_to_screen).norm()*self.screen_size.y;
@@ -206,17 +222,33 @@ impl Camera {
         }
         out
     }
-    pub fn move_pos(&mut self, btn: Button) {    
-        if let Button::Keyboard(i) = btn {
-            match i {
-                Key::W => self.pos.x += 1.,
-                Key::S => self.pos.x -= 1.,
-                Key::D => self.pos.z += 1.,
-                Key::A => self.pos.z -= 1.,
-                Key::LShift => self.pos.y += 1.,
-                Key::Space => self.pos.y -= 1.,
-                _ => (),
+    pub fn button_handler(&mut self, btn: &ButtonArgs) {
+        if let Button::Keyboard(i) = btn.button  {    
+            if let ButtonState::Press = btn.state {
+                match i {
+                    Key::W => self.move_vec.x = 1.,
+                    Key::S => self.move_vec.x = -1.,
+                    Key::D => self.move_vec.z = 1.,
+                    Key::A => self.move_vec.z = -1.,
+                    Key::LShift => self.move_vec.y = 1.,
+                    Key::Space => self.move_vec.y = -1.,
+                    _ => (),
+                }
+            }
+            else {
+                match i {
+                    Key::W => self.move_vec.x = 0.,
+                    Key::S => self.move_vec.x = 0.,
+                    Key::D => self.move_vec.z = 0.,
+                    Key::A => self.move_vec.z = 0.,
+                    Key::LShift => self.move_vec.y = 0.,
+                    Key::Space => self.move_vec.y = 0.,
+                    _ => (),
+                }
             }
         }
+    }
+    pub fn move_pos(&mut self) {
+        self.pos = self.pos + self.move_vec*self.speed;
     }
 }
