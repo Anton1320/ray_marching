@@ -60,6 +60,109 @@ impl Add<Vector3> for Vector3 {
         }
     }
 }
+#[derive(Copy, Clone, Debug)]
+pub struct TransformMatrix {
+    m: [[f32; 4]; 4],
+}
+
+impl TransformMatrix {
+    fn new_empty_matrix() -> TransformMatrix {
+        TransformMatrix {m: [[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,]]}
+    }
+    fn new_transform_matrix(pos: Vector3, rot: Vector3, size:Vector3) -> TransformMatrix {
+        let set_pos = TransformMatrix{m:
+            [[1., 0., 0., pos.x],
+             [0., 1., 0., pos.y],
+             [0., 0., 1., pos.z],
+             [0., 0., 0.,   1.]]
+        };
+        let set_rot_x = TransformMatrix{m:
+            [[1., 0.,          0.,           0.],
+             [0., rot.x.cos(), -rot.x.sin(), 0.],
+             [0., rot.x.sin(), rot.x.cos(),  0.],
+             [0., 0.,          0.,           1.]]
+        };
+        let set_rot_y = TransformMatrix{m:
+            [[(rot.y).cos(), 0., (rot.y).sin(), 0.],
+             [0.,             1., 0.,              0.],
+             [-(rot.y).sin(), 0., (rot.y).cos(),  0.],
+             [0.,             0., 0.,              1.]]
+        };
+        let set_rot_z = TransformMatrix{m:
+            [[rot.z.cos(), -rot.z.sin(), 0., 0.],
+             [rot.z.sin(), rot.z.cos(),  0., 0.],
+             [0.,          0.,           1., 0.],
+             [0.,          0.,           0., 1.]]
+        };
+        let set_size = TransformMatrix{m:
+            [[size.x, 0., 0., 0.],
+             [0., size.y, 0., 0.],
+             [0., 0., size.z, 0.],
+             [0., 0., 0., 1.]]
+        };
+        set_pos*set_rot_x*set_rot_y*set_rot_z*set_size
+    }
+    pub fn transform_matrix(&mut self, pos: Vector3, rot: Vector3, size:Vector3) {
+        let mut new = TransformMatrix::new_empty_matrix();
+        new.m = self.m;
+        let qw = TransformMatrix::new_transform_matrix(pos, rot, size + Vector3::new(1., 1., 1.));
+        self.m = (new*qw).m;
+    }
+}
+
+impl Mul<Vector3> for TransformMatrix {
+    type Output = Vector3;
+    fn mul(self, a:Vector3) -> Vector3 {
+        Vector3::new(
+            self.m[0][0]*a.x+self.m[0][1]*a.y+self.m[0][2]*a.z+self.m[0][3], 
+            self.m[1][0]*a.x+self.m[1][1]*a.y+self.m[1][2]*a.z+self.m[1][3],
+            self.m[2][0]*a.x+self.m[2][1]*a.y+self.m[2][2]*a.z+self.m[2][3]
+        )
+    }
+}
+
+impl Mul<TransformMatrix> for TransformMatrix {
+    type Output = TransformMatrix;
+    fn mul(self, a:TransformMatrix) -> TransformMatrix {
+        let mut b = TransformMatrix::new_empty_matrix();
+        for i in 0..4 {
+            for j in 0..4 {
+                for k in 0..4 {
+                    b.m[i][j] += self.m[i][k]*a.m[k][j];
+                }
+            }
+        }
+        b
+    }
+}
+#[test]
+fn test() {
+    let a = TransformMatrix{m:[[ 12.,  23.,   7.,   6.],
+        [ 34.,  85.,  12.,  65.],
+        [594., 374., 895., 385.],
+        [214.,  45.,  85.,  98.]]}*
+        TransformMatrix {
+            m:[[0.49083904, 0.78827533, 0.65304331, 0.79109184],
+       [0.48680807, 0.84175652, 0.02830482, 0.15441525],
+       [0.54371187, 0.25212335, 0.74663694, 0.44069122],
+       [0.30097199, 0.87539356, 0.94871428, 0.9823001 ]]
+        };
+    let b = TransformMatrix {m:[[  22.69846904,   35.83692878,   19.40627489,   22.02329201],
+        [  84.15493491,  158.27672724,   95.23545377,  109.1602201 ],
+        [1076.12094689, 1345.72940173, 1431.98878752, 1300.26403771],
+        [ 202.65668101,  313.78901793,  297.46312495,  309.96650304]]};
+    let mut c = true;
+    for i in 1..4 {
+        for j in 1..4 {
+            if (a.m[i][j] - b.m[i][j]).abs() > 0.0001{
+                c = false;
+                println!("{}, {}\n{}", i, j, a.m[i][j]);
+                break;
+            }
+        }
+    }
+    assert_eq!(c, true)
+}
 
 impl Vector3{
     pub fn new(x:f32, y:f32, z:f32) -> Vector3 {
@@ -103,16 +206,6 @@ pub trait Figure {
     }
 }
 
-pub struct Translator {
-    
-}
-
-impl Translator {
-    fn new(figure: &dyn Figure, rot: Vector3) -> Translator {
-        Translator{}
-    }
-}
-
 pub struct Sphere {
     pub center: Vector3,
     pub r: f32,
@@ -130,6 +223,7 @@ pub struct Box {
     pub size: Vector3,
     pub rotation:Vector3,
     pub color: Vector3,
+    pub transform: TransformMatrix,
 }
 
 impl Box {
@@ -139,6 +233,7 @@ impl Box {
             rotation:rot,
             size: size,
             color: color,
+            transform: TransformMatrix::new_transform_matrix(pos, rot, size),
         }
     }
     fn rotate_point(&self, point:Vector3, a:f32) -> Vector3 {
@@ -160,8 +255,8 @@ impl Box {
 }
 impl Figure for Box {
     fn get_distance(&self, point:Vector3) -> f32 {
-        let p = self.rotate_point(point - self.pos, -1.);
-
+        //let p = self.rotate_point(point - self.pos, -1.);
+        let p =  self.transform*point;
         let q = p.abs() - self.size;
         q.max(0.).length() + q.maxcomp().min(0.)
     }
@@ -180,6 +275,7 @@ pub struct Camera {
     pub dist_to_screen: f32, // расстояние от центра экрана до камеры
     pub vector_to_screen: Vector3, // нормированный вектор из камеры, указывающий на центр экрана
     pub angle_vector_x: Vector3, // нормированный вектор из центра экрана в середину правой стороны экрана
+    pub transform: TransformMatrix,
     move_vec: Vector3,
     speed:f32,
 }
@@ -194,6 +290,7 @@ impl Camera {
             dist_to_screen: dist_to_screen,
             vector_to_screen: vector_to_screen,
             angle_vector_x: angle_vector_x,
+            transform: TransformMatrix::new_transform_matrix(Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.)),
             move_vec: Vector3::new(0., 0., 0.),
             speed: 0.1,
         }
