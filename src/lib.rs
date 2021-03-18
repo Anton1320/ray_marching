@@ -1,7 +1,7 @@
 use std::ops::{Mul, Rem, Sub, Add};
 extern crate piston_window;
 use piston_window::*;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
@@ -61,56 +61,96 @@ impl Add<Vector3> for Vector3 {
     }
 }
 #[derive(Copy, Clone, Debug)]
-pub struct TransformMatrix {
+pub struct Matrix4x4 {
     m: [[f32; 4]; 4],
 }
 
-impl TransformMatrix {
-    fn new_empty_matrix() -> TransformMatrix {
-        TransformMatrix {m: [[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,]]}
+#[derive(Copy, Clone, Debug)]
+pub struct Transform {
+    pub position: Matrix4x4,
+    pub rotation: Matrix4x4,
+    pub size: Matrix4x4,
+    pub matrix: Matrix4x4,
+}
+
+impl Transform {
+    pub fn new(pos: Vector3, rot: Vector3, size: Vector3) -> Transform {
+        let a = Matrix4x4::new_pos_matrix(pos);
+        let b = Matrix4x4::new_rotation_matrix(rot, None);
+        let c = Matrix4x4::new_size_matrix(size);
+        Transform {
+            position: a,
+            rotation: b,
+            size: c,
+            matrix: b*c*a, 
+        }
     }
-    fn new_transform_matrix(pos: Vector3, rot: Vector3, size:Vector3) -> TransformMatrix {
-        let set_pos = TransformMatrix{m:
-            [[1., 0., 0., pos.x],
+    pub fn transform_matrix(&mut self, pos: Vector3, rot: Vector3, size:Vector3, freeze: Option<(bool, bool, bool)>) {
+        self.position.m[0][3] -= pos.x;
+        self.position.m[1][3] += pos.y;
+        self.position.m[2][3] += pos.z;
+        self.size.m[0][0] -= size.x;
+        self.size.m[1][1] -=size.y;
+        self.size.m[2][2] -= size.z;
+        self.rotation = self.rotation * Matrix4x4::new_rotation_matrix(rot, None);
+        self.matrix = self.size * self.rotation * self.position;
+    }
+}
+
+impl Matrix4x4 {
+    fn new_empty_matrix() -> Matrix4x4 {
+
+        Matrix4x4 {m: [[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,]]}
+    }
+    fn new_pos_matrix(pos:Vector3) -> Matrix4x4 {
+        Matrix4x4{m:
+            [[1., 0., 0., -pos.x],
              [0., 1., 0., pos.y],
              [0., 0., 1., pos.z],
              [0., 0., 0.,   1.]]
-        };
-        let set_rot_x = TransformMatrix{m:
+        }
+    }
+    fn new_rotation_matrix(rot: Vector3, freeze: Option<(bool, bool, bool)>) -> Matrix4x4 {
+        let set_rot_x = Matrix4x4{m:
             [[1., 0.,          0.,           0.],
              [0., rot.x.cos(), -rot.x.sin(), 0.],
              [0., rot.x.sin(), rot.x.cos(),  0.],
              [0., 0.,          0.,           1.]]
         };
-        let set_rot_y = TransformMatrix{m:
+        let set_rot_y = Matrix4x4{m:
             [[(rot.y).cos(), 0., (rot.y).sin(), 0.],
              [0.,             1., 0.,              0.],
              [-(rot.y).sin(), 0., (rot.y).cos(),  0.],
              [0.,             0., 0.,              1.]]
         };
-        let set_rot_z = TransformMatrix{m:
+        let set_rot_z = Matrix4x4{m:
             [[rot.z.cos(), -rot.z.sin(), 0., 0.],
              [rot.z.sin(), rot.z.cos(),  0., 0.],
              [0.,          0.,           1., 0.],
              [0.,          0.,           0., 1.]]
         };
-        let set_size = TransformMatrix{m:
-            [[size.x, 0., 0., 0.],
+        let mut out = Matrix4x4::new_pos_matrix(Vector3::new(0., 0., 0.));
+        if let Some(i) = freeze{
+            if !i.0{ out = out * set_rot_x; }
+            if !i.1{ out = out * set_rot_y; }
+            if !i.2{ out = out * set_rot_z; }
+        }
+        else {
+            out = set_rot_y*out*set_rot_z*set_rot_x;
+        }
+        out
+    }
+    pub fn new_size_matrix(size: Vector3) -> Matrix4x4 {
+        Matrix4x4 {
+            m:[[size.x, 0., 0., 0.],
              [0., size.y, 0., 0.],
              [0., 0., size.z, 0.],
-             [0., 0., 0., 1.]]
-        };
-        set_pos*set_rot_x*set_rot_y*set_rot_z*set_size
-    }
-    pub fn transform_matrix(&mut self, pos: Vector3, rot: Vector3, size:Vector3) {
-        let mut new = TransformMatrix::new_empty_matrix();
-        new.m = self.m;
-        let qw = TransformMatrix::new_transform_matrix(pos, rot, size + Vector3::new(1., 1., 1.));
-        self.m = (new*qw).m;
+             [0., 0., 0., 0.]]
+        }
     }
 }
 
-impl Mul<Vector3> for TransformMatrix {
+impl Mul<Vector3> for Matrix4x4 {
     type Output = Vector3;
     fn mul(self, a:Vector3) -> Vector3 {
         Vector3::new(
@@ -121,10 +161,10 @@ impl Mul<Vector3> for TransformMatrix {
     }
 }
 
-impl Mul<TransformMatrix> for TransformMatrix {
-    type Output = TransformMatrix;
-    fn mul(self, a:TransformMatrix) -> TransformMatrix {
-        let mut b = TransformMatrix::new_empty_matrix();
+impl Mul<Matrix4x4> for Matrix4x4 {
+    type Output = Matrix4x4;
+    fn mul(self, a:Matrix4x4) -> Matrix4x4 {
+        let mut b = Matrix4x4::new_empty_matrix();
         for i in 0..4 {
             for j in 0..4 {
                 for k in 0..4 {
@@ -137,17 +177,17 @@ impl Mul<TransformMatrix> for TransformMatrix {
 }
 #[test]
 fn test() {
-    let a = TransformMatrix{m:[[ 12.,  23.,   7.,   6.],
+    let a = Matrix4x4{m:[[ 12.,  23.,   7.,   6.],
         [ 34.,  85.,  12.,  65.],
         [594., 374., 895., 385.],
         [214.,  45.,  85.,  98.]]}*
-        TransformMatrix {
+        Matrix4x4 {
             m:[[0.49083904, 0.78827533, 0.65304331, 0.79109184],
        [0.48680807, 0.84175652, 0.02830482, 0.15441525],
        [0.54371187, 0.25212335, 0.74663694, 0.44069122],
        [0.30097199, 0.87539356, 0.94871428, 0.9823001 ]]
         };
-    let b = TransformMatrix {m:[[  22.69846904,   35.83692878,   19.40627489,   22.02329201],
+    let b = Matrix4x4 {m:[[  22.69846904,   35.83692878,   19.40627489,   22.02329201],
         [  84.15493491,  158.27672724,   95.23545377,  109.1602201 ],
         [1076.12094689, 1345.72940173, 1431.98878752, 1300.26403771],
         [ 202.65668101,  313.78901793,  297.46312495,  309.96650304]]};
@@ -172,7 +212,10 @@ impl Vector3{
         (self.x.powf(2.) + self.y.powf(2.) + self.z.powf(2.)).sqrt()
     }
     pub fn norm(&self) -> Vector3 {
-        let l = 1./self.length();
+        let a = self.length();
+        let l: f32;
+        if a != 0. {l = 1./self.length();}
+        else {l = 0.;}
         Vector3 {x:self.x*l, y:self.y*l, z:self.z*l}
     }
     pub fn abs(&self) -> Vector3 {
@@ -187,6 +230,13 @@ impl Vector3{
             x: self.x.max(a),
             y: self.y.max(a),
             z: self.z.max(a),
+        }
+    }
+    fn min(&self, a:f32) -> Vector3 {
+        Vector3 {
+            x: self.x.min(a),
+            y: self.y.min(a),
+            z: self.z.min(a),
         }
     }
     fn maxcomp(&self) -> f32 {
@@ -223,7 +273,7 @@ pub struct Box {
     pub size: Vector3,
     pub rotation:Vector3,
     pub color: Vector3,
-    pub transform: TransformMatrix,
+    pub transform: Transform,
 }
 
 impl Box {
@@ -233,39 +283,23 @@ impl Box {
             rotation:rot,
             size: size,
             color: color,
-            transform: TransformMatrix::new_transform_matrix(pos, rot, size),
+            transform: Transform::new(pos, rot, size),
         }
-    }
-    fn rotate_point(&self, point:Vector3, a:f32) -> Vector3 {
-        let mut p = point;
-        let mut p1 = point;
-        let angle = self.rotation*a;
-        p.z = p1.z*angle.x.cos()-p1.y*angle.x.sin();
-        p.y = p1.z*angle.x.sin()+p1.y*angle.x.cos();
-        p1 = p;
-        //вокруг y
-        p.x = p1.x*angle.y.cos()-p1.z*angle.y.sin();
-        p.z = p1.x*angle.y.sin()+p1.z*angle.y.cos();
-        p1 = p;
-        //вокруг z
-        p.x = p1.x*angle.z.cos()-p1.y*angle.z.sin();
-        p.y = p1.x*angle.z.sin()+p1.y*angle.z.cos();
-        p
     }
 }
 impl Figure for Box {
     fn get_distance(&self, point:Vector3) -> f32 {
         //let p = self.rotate_point(point - self.pos, -1.);
-        let p =  self.transform*point;
+        let p =  self.transform.matrix*point;
         let q = p.abs() - self.size;
         q.max(0.).length() + q.maxcomp().min(0.)
     }
 }
 
-pub struct Screen {
-    pub pos:Vector3, // координата левого верхнего угла
-    pub i: Vector3, // еденичный вектор, параллельный стороне x и выходящий из левого нижнего угла
-    pub j: Vector3, // еденичный вектор, параллельный стороне y и выходящий из левого нижнего угла
+struct Screen {
+    pos:Vector3, // координата левого верхнего угла
+    i: Vector3, // еденичный вектор, параллельный стороне x и выходящий из левого нижнего угла
+    j: Vector3, // еденичный вектор, параллельный стороне y и выходящий из левого нижнего угла
 }
 
 pub struct Camera {
@@ -275,31 +309,34 @@ pub struct Camera {
     pub dist_to_screen: f32, // расстояние от центра экрана до камеры
     pub vector_to_screen: Vector3, // нормированный вектор из камеры, указывающий на центр экрана
     pub angle_vector_x: Vector3, // нормированный вектор из центра экрана в середину правой стороны экрана
-    pub transform: TransformMatrix,
+    pub transform: Transform,
     move_vec: Vector3,
+    rot_vec: Vector3,
     speed:f32,
+    sensitivity: f32,
 }
 
 impl Camera {
-    pub fn new(pos:Vector3, screen_size:Vector3, screen_resolution:(usize, usize), dist_to_screen: f32,
-                vector_to_screen: Vector3, angle_vector_x: Vector3) -> Camera {
+    pub fn new(pos:Vector3, screen_size:Vector3, screen_resolution:(usize, usize), dist_to_screen: f32) -> Camera {
         Camera {
             pos:pos,
             screen_size:screen_size,
             screen_resolution: screen_resolution,
             dist_to_screen: dist_to_screen,
-            vector_to_screen: vector_to_screen,
-            angle_vector_x: angle_vector_x,
-            transform: TransformMatrix::new_transform_matrix(Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.)),
+            vector_to_screen: Vector3::new(1., 0., 0.),
+            angle_vector_x: Vector3::new(0., 0., 1.),
+            transform: Transform::new(pos, Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.)),
             move_vec: Vector3::new(0., 0., 0.),
+            rot_vec: Vector3::new(0., 0., 0.),
             speed: 0.1,
+            sensitivity: 0.01,
         }
 
     }
-    pub fn get_screen(&self) -> Screen {
+    fn get_screen(&self) -> Screen {
         let v_x = self.angle_vector_x*self.screen_size.x;
         let v_y = (v_x%self.vector_to_screen).norm()*self.screen_size.y;
-        let pos = self.pos+self.vector_to_screen*self.dist_to_screen-(v_x+v_y)*0.5;
+        let pos = self.vector_to_screen*self.dist_to_screen-(v_x+v_y)*0.5;
         Screen {
             pos: pos,
             i: v_x.norm(),
@@ -310,11 +347,15 @@ impl Camera {
     pub fn get_render_vectors(&self) -> Vec<Vec<Vector3>>{
         let sc = self.get_screen();
         let mut out: Vec<Vec<Vector3>> = vec![];
+        let cell_x = sc.i*(self.screen_size.x/self.screen_resolution.0 as f32);
+        let cell_y = sc.j*(self.screen_size.y/self.screen_resolution.1 as f32);
         for i in 0..self.screen_resolution.0 {
             out.push(vec![]);
-            for j in 0..self.screen_resolution.1 {
-                out[i].push((sc.pos+sc.i*(self.screen_size.x/self.screen_resolution.0 as f32)*(i as f32)+
-                                   sc.j*(self.screen_size.y/self.screen_resolution.1 as f32)*(j as f32)-self.pos).norm());
+            for j in 0..self.screen_resolution.1 {                
+                let a = (sc.pos+(cell_x*(i as f32)+cell_y*(j as f32))).norm();
+                //println!("{:?}", self.transform.rotation);
+                out[i].push(self.transform.rotation*a);
+                //println!("{}, {}, {} |", a.x, a.y, a.z);
             }
         }
         out
@@ -323,8 +364,8 @@ impl Camera {
         if let Button::Keyboard(i) = btn.button  {    
             if let ButtonState::Press = btn.state {
                 match i {
-                    Key::W => self.move_vec.x = 1.,
-                    Key::S => self.move_vec.x = -1.,
+                    Key::W => self.move_vec.x = -1.,
+                    Key::S => self.move_vec.x = 1.,
                     Key::D => self.move_vec.z = 1.,
                     Key::A => self.move_vec.z = -1.,
                     Key::LShift => self.move_vec.y = 1.,
@@ -345,7 +386,16 @@ impl Camera {
             }
         }
     }
+
+    pub fn mouse_move_handler(&mut self, x: &f64, y: &f64) {
+        self.rot_vec = self.rot_vec + Vector3::new(0.0, -*x as f32 * self.sensitivity,  *y as f32 * self.sensitivity);
+        self.rot_vec.z = self.rot_vec.z.min(3.14/2.);
+        self.rot_vec.z = self.rot_vec.z.max(-3.14/2.);
+        self.transform.rotation = Matrix4x4::new_rotation_matrix(self.rot_vec, None);
+        self.transform.matrix = self.transform.size * self.transform.rotation * self.transform.position;
+    }
+
     pub fn move_pos(&mut self) {
-        self.pos = self.pos + self.move_vec*self.speed;
+        self.transform.transform_matrix(Matrix4x4::new_rotation_matrix(self.rot_vec*(-1.), None) * self.move_vec.norm()*self.speed, Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.), Some((true, true, true)));
     }
 }
