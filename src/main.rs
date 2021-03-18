@@ -24,15 +24,12 @@ impl Figure for SuperSphere {
 }
 
 
-
 fn main() {
     let mut cam = Camera::new(
-        Vector3::new(-3., 0., 0.),
+        Vector3::new(0., 0., 0.),
         Vector3::new(1., 1., 0.),
-        (300, 300),
-        0.5,
-        Vector3::new(1., 0., 0.),
-        Vector3::new(0., 0., 1.),   
+        (50, 50),
+        0.5,  
     );
 
     let light = Vector3::new(0., 0., 2.);
@@ -45,7 +42,7 @@ fn main() {
     let super_sphere  = SuperSphere {s:sphere};
     let mut cube = Box::new
     (
-        Vector3::new(0., 0., 0.),
+        Vector3::new(3., 0., 0.),
         Vector3::new(0., 0., 0.),
         Vector3::new(1., 1., 1.),
         Vector3::new(255., 255., 1.)
@@ -56,18 +53,26 @@ fn main() {
     let mut window: PistonWindow =
         WindowSettings::new("Ray marching", [cam.screen_resolution.0 as u32, cam.screen_resolution.1 as u32])
         .exit_on_esc(true).build().unwrap();
-
-    
-    
+    window.set_capture_cursor(true);
     while let Some(event) = window.next() {
+        
+        let render_vectors = cam.get_render_vectors();
         //super_cube.cube.rotation.x += 1./40.;
         //super_cube.cube.rotation.y += 1./45.;
         //super_cube.cube.rotation.z += 1./35.;
         //sphere.center.z += 0.1;
-        cube.transform.transform_matrix(Vector3::new(0.0, 0., 0.), Vector3::new(0., 0.0, 0.0), Vector3::new(0., 0., 0.));
+        cube.transform.transform_matrix(Vector3::new(0., 0., 0.), Vector3::new(0., 0.0, 0.0), Vector3::new(0., 0.0, 0.0), None);
+        //println!("1 {:?}", cam.transform.rotation);
         if let Event::Input(i) = &event{
             if let Input::Button(j) = i {
                 cam.button_handler(j);
+            }
+            else if let Input::Move(j) = i
+            {
+                if let Motion::MouseRelative(x, y) = j{
+                    
+                    cam.mouse_move_handler(x, y);
+                }
             }
         }
         cam.move_pos();
@@ -76,15 +81,16 @@ fn main() {
                 let mut ray = Vector3::new(0., 0., 0.);
                 pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
                 for _k in 0..50 {
-                    let p = cam.pos+ray;
-                    let dist = cube.get_distance(p);
+                    let p = cam.transform.position*ray;
+                    let dist = super_sphere.get_distance(p);
                     if dist < 0.01 {
-                        let a =  cube.color*((cube.get_normal(cam.pos+ray)*(light-cam.pos-ray).norm()).powf(2.)+0.1);
+                        let a = cube.color*((super_sphere.get_normal(p)*(light-p).norm()).powf(2.)+0.1);
                         pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
                         break;
                     } 
-                    else if ray.length() > 10. {break;}
-                    ray = ray+(render_vectors[i][j])*dist;
+                    else if ray.length() > 20. {break;}
+                    //ray = ray+(cam.transform.rotation*render_vectors[i][j])*dist;
+                    ray = ray+render_vectors[i][j]*dist;
                 }
             }
         }
