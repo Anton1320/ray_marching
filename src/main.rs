@@ -28,7 +28,7 @@ fn main() {
     let mut cam = Camera::new(
         Vector3::new(0., 0., 0.),
         Vector3::new(1., 1., 0.),
-        (50, 50),
+        (100, 100),
         0.5,  
     );
 
@@ -52,10 +52,13 @@ fn main() {
     let mut pixels = image::ImageBuffer::from_pixel(cam.screen_resolution.0 as u32, cam.screen_resolution.1 as u32, image::Rgba([0,0,0, 255]));
     let mut window: PistonWindow =
         WindowSettings::new("Ray marching", [cam.screen_resolution.0 as u32, cam.screen_resolution.1 as u32])
-        .exit_on_esc(true).build().unwrap();
+        .exit_on_esc(true)
+        .build()
+        .unwrap();
+    let mut events = window.events;
     window.set_capture_cursor(true);
-    while let Some(event) = window.next() {
-        
+    //window.set_ups(1);
+    while let Some(event) = events.next(&mut window) {
         let render_vectors = cam.get_render_vectors();
         //super_cube.cube.rotation.x += 1./40.;
         //super_cube.cube.rotation.y += 1./45.;
@@ -76,24 +79,6 @@ fn main() {
             }
         }
         cam.move_pos();
-        for i in 0..cam.screen_resolution.0 {
-            for j in 0..cam.screen_resolution.1 {
-                let mut ray = Vector3::new(0., 0., 0.);
-                pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
-                for _k in 0..50 {
-                    let p = cam.transform.position*ray;
-                    let dist = super_sphere.get_distance(p);
-                    if dist < 0.01 {
-                        let a = cube.color*((super_sphere.get_normal(p)*(light-p).norm()).powf(2.)+0.1);
-                        pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
-                        break;
-                    } 
-                    else if ray.length() > 20. {break;}
-                    //ray = ray+(cam.transform.rotation*render_vectors[i][j])*dist;
-                    ray = ray+render_vectors[i][j]*dist;
-                }
-            }
-        }
         let tex = Texture::from_image(
             &mut window.create_texture_context(),
             &pixels,
@@ -103,6 +88,24 @@ fn main() {
         window.draw_2d(&event, |context, graphics, _| {
             clear([1.0; 4], graphics);
             image(&tex, context.transform, graphics);
-        });
+        }) ;
+        for i in 0..cam.screen_resolution.0 {
+            for j in 0..cam.screen_resolution.1 {
+                let mut ray = Vector3::new(0., 0., 0.);
+                pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
+                for _k in 0..50 {
+                    let p = cam.transform.position*ray;
+                    let dist = super_sphere.get_distance(p);
+                    if dist < 0.01 {
+                        let a= cube.color*((super_sphere.get_normal(p)*(light-p).norm()).powf(2.)+0.1);
+                        pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
+                        break;
+                    } 
+                    else if ray.length() > 10. {break;}
+                    //ray = ray+(cam.transform.rotation*render_vectors[i][j])*dist;
+                    ray = ray+render_vectors[i][j]*dist;
+                }
+            }
+        }
     }
 }
