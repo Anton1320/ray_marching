@@ -1,5 +1,6 @@
-use std::ops::{Mul, Rem, Sub, Add};
+use std::ops::{Mul, Rem, Sub, Add, IndexMut};
 extern crate piston_window;
+extern crate image;
 use piston_window::*;
 #[derive(Copy, Clone, Debug)]
 pub struct Vector3 {
@@ -85,7 +86,7 @@ impl Transform {
             matrix: b*c*a, 
         }
     }
-    pub fn transform_matrix(&mut self, pos: Vector3, rot: Vector3, size:Vector3, freeze: Option<(bool, bool, bool)>) {
+    pub fn transform_matrix(&mut self, pos: Vector3, rot: Vector3, size:Vector3) {
         self.position.m[0][3] -= pos.x;
         self.position.m[1][3] += pos.y;
         self.position.m[2][3] += pos.z;
@@ -232,13 +233,13 @@ impl Vector3{
             z: self.z.max(a),
         }
     }
-    fn min(&self, a:f32) -> Vector3 {
+    /*fn min(&self, a:f32) -> Vector3 {
         Vector3 {
             x: self.x.min(a),
             y: self.y.min(a),
             z: self.z.min(a),
         }
-    }
+    }*/
     fn maxcomp(&self) -> f32 {
         self.x.max(self.y.max(self.z))
     }
@@ -254,19 +255,84 @@ pub trait Figure {
         let dz = self.get_distance(point + Vector3::new(0., 0., EPS));
         ((Vector3::new(dx, dy, dz) - Vector3::new(d, d, d)) * (1. / EPS)).norm()
     }
+    //fn get_transform(&self) -> &Transform;
+    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3);
+    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3;
+}
+
+pub struct Folder<'a> {
+    pub figures: Vec<&'a mut dyn Figure>,
+    pub transform: Transform,
+}
+
+impl Folder<'_> {
+    fn get_closere_object(&self, point: Vector3) -> (f32, usize) {
+        let mut m = 1000000000.;
+        let mut a = 0 as usize;
+        let mut j = 0 as usize;
+        for i in &self.figures {
+            let d = i.get_distance(point);
+            if d < m {
+                m = d;
+                a = j;
+            }
+            j += 1;
+        }
+        (m, a)
+    }
+}
+
+impl Figure for Folder<'_> {
+    fn get_distance(&self, point: Vector3) -> f32 {
+        self.get_closere_object(point).0
+    }
+    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
+        self.transform.transform_matrix(pos, rot, size);
+    }
+    fn get_color(&self, point: Vector3, light: Vector3) -> Vector3 {
+        self.figures[self.get_closere_object(point).1].get_color(point, light)
+    }
+}
+
+pub struct Plane {
+    pub y: f32,
+    pub transform: Transform,
+    pub color: Vector3,
+}
+
+impl Figure for Plane {
+    fn get_distance(&self, point: Vector3) -> f32 {
+        self.y - point.y
+    }
+    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
+        self.transform.transform_matrix(pos, rot, size);
+    }
+    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
+        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
+        self.color*l
+    }
 }
 
 pub struct Sphere {
     pub center: Vector3,
     pub r: f32,
     pub color: Vector3,
+    pub transform: Transform,
 }
 
 impl Figure for Sphere {
     fn get_distance(&self, point:Vector3) -> f32 {
         (point-self.center).length() - self.r
     }
+    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
+        self.transform.transform_matrix(pos, rot, size);
+    }
+    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
+        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
+        self.color*l
+    }
 }
+
 
 pub struct Box {
     pub pos:Vector3,
@@ -292,9 +358,18 @@ impl Figure for Box {
         //let p = self.rotate_point(point - self.pos, -1.);
         let p =  self.transform.matrix*point;
         let q = p.abs() - self.size;
-        q.max(0.).length() + q.maxcomp().min(0.)
+        let d = q.max(0.).length() + q.maxcomp().min(0.) - 0.2;
+        d
+    }
+    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
+        self.transform.transform_matrix(pos, rot, size);
+    }
+    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
+        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
+        self.color*l
     }
 }
+
 
 struct Screen {
     pos:Vector3, // координата левого верхнего угла
@@ -329,7 +404,7 @@ impl Camera {
             move_vec: Vector3::new(0., 0., 0.),
             rot_vec: Vector3::new(0., 0., 0.),
             speed: 0.1,
-            sensitivity: 0.01,
+            sensitivity: 0.001,
         }
 
     }
@@ -360,6 +435,36 @@ impl Camera {
         }
         out
     }
+
+    pub fn map(&self, figure: &dyn Figure, light: Vector3) -> image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>> {
+        let mut pixels = image::ImageBuffer::from_pixel(self.screen_resolution.0 as u32,
+             self.screen_resolution.1 as u32,
+              image::Rgba([0,0,0, 255]));
+        
+        let render_vectors = self.get_render_vectors();
+        for i in 0..self.screen_resolution.0 {
+            for j in 0..self.screen_resolution.1 {
+                let mut ray = Vector3::new(0., 0., 0.);
+                pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
+                for _k in 0..200 {
+                    let p = self.transform.position*ray;
+                    let dist = figure.get_distance(p);
+                    if dist < 0.01 {
+                        let mut a = figure.get_color(p, light);
+                        let l = _k as f32 * 0.5 + ray.length();
+                        a = a - Vector3::new(l, l, l);
+                        pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
+                        break;
+                    } 
+                    else if ray.length() > 300. {break;}
+                    //ray = ray+(self.transform.rotation*render_vectors[i][j])*dist;
+                    ray = ray+render_vectors[i][j]*dist;
+                }
+            }
+        }
+        pixels
+    }
+
     pub fn button_handler(&mut self, btn: &ButtonArgs) {
         if let Button::Keyboard(i) = btn.button  {    
             if let ButtonState::Press = btn.state {
@@ -396,6 +501,6 @@ impl Camera {
     }
 
     pub fn move_pos(&mut self) {
-        self.transform.transform_matrix(Matrix4x4::new_rotation_matrix(self.rot_vec*(-1.), None) * self.move_vec.norm()*self.speed, Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.), Some((true, true, true)));
+        self.transform.transform_matrix(Matrix4x4::new_rotation_matrix(self.rot_vec*(-1.), None) * self.move_vec.norm()*self.speed, Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.));
     }
 }
