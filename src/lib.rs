@@ -446,7 +446,7 @@ impl Camera {
         for _k in 0..200 {
             let p = self.transform.position*ray;
             let dist = figure.get_distance(p);
-            if dist < 0.01 { a = Some(ray); break; } 
+            if dist < 0.01 { a = Some(p); break; } 
             else if ray.length() > 300. { a = None ;break; }
             ray = ray+dir_vector*dist;
             j += 1;
