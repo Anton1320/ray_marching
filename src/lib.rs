@@ -439,12 +439,12 @@ impl Camera {
         out
     }
 
-    fn march(&self, dir_vector: Vector3, figure: &dyn Figure) -> (Option<Vector3>, usize) { //точка пересечения(если есть), кол-во итераций
+    fn march(&self, dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (Option<Vector3>, usize) { //точка пересечения(если есть), кол-во итераций
         let mut ray = Vector3::new(0., 0., 0.);
         let mut a: Option<Vector3> = None;
         let mut j: usize = 0;
         for _k in 0..200 {
-            let p = self.transform.position*ray;
+            let p = position*ray;
             let dist = figure.get_distance(p);
             if dist < 0.01 { a = Some(p); break; } 
             else if ray.length() > 300. { a = None ;break; }
@@ -462,20 +462,14 @@ impl Camera {
         let render_vectors = self.get_render_vectors();
         for i in 0..self.screen_resolution.0 {
             for j in 0..self.screen_resolution.1 {
-                let mut ray = Vector3::new(0., 0., 0.);
                 pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
-                for _k in 0..200 {
-                    let p = self.transform.position*ray;
-                    let dist = figure.get_distance(p);
-                    if dist < 0.01 {
-                        let mut a = figure.get_color(p, light);
-                        let l = _k as f32 * 0.5 + ray.length();
-                        a = a - Vector3::new(l, l, l);
-                        pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
-                        break;
-                    } 
-                    else if ray.length() > 300. {break;}
-                    ray = ray+render_vectors[i][j]*dist;
+                let march = self.march(render_vectors[i][j], self.transform.position,figure);
+                if let Some(p) = march.0 {
+                    let mut a = figure.get_color(p, light);
+                    let l = march.1 as f32 * 0.5 + p.length();
+                    a = a - Vector3::new(l, l, l);
+                    
+                    pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
                 }
             }
         }
