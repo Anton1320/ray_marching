@@ -247,6 +247,9 @@ impl Vector3{
 
 pub trait Figure {
     fn get_distance(&self, point: Vector3) -> f32;
+    fn get_transform(&self) -> &Transform;
+    fn get_mut_transform(&mut self) -> &mut Transform;
+    fn get_figure_color(&self) -> Vector3;
     fn get_normal(&self, point: Vector3) -> Vector3 {
         const EPS: f32 = 0.0001;
         let d = self.get_distance(point);
@@ -256,8 +259,13 @@ pub trait Figure {
         ((Vector3::new(dx, dy, dz) - Vector3::new(d, d, d)) * (1. / EPS)).norm()
     }
     //fn get_transform(&self) -> &Transform;
-    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3);
-    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3;
+    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
+        self.get_mut_transform().transform_matrix(pos, rot, size);
+    }
+    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
+        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
+        self.get_figure_color()*l
+    }
 }
 
 pub struct Folder<'a> {
@@ -287,9 +295,9 @@ impl Figure for Folder<'_> {
         let p = self.transform.rotation * point;
         self.get_closere_object(p).0
     }
-    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
-        self.transform.transform_matrix(pos, rot, size);
-    }
+    fn get_transform(&self) -> &Transform { &self.transform }
+    fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_figure_color(&self) -> Vector3 { Vector3::new(0., 0., 0.) }
     fn get_color(&self, point: Vector3, light: Vector3) -> Vector3 {
         let p = self.transform.rotation * point;
         self.figures[self.get_closere_object(p).1].get_color(p, light)
@@ -306,13 +314,9 @@ impl Figure for Plane {
     fn get_distance(&self, point: Vector3) -> f32 {
         self.y - point.y
     }
-    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
-        self.transform.transform_matrix(pos, rot, size);
-    }
-    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
-        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
-        self.color*l
-    }
+    fn get_transform(&self) -> &Transform { &self.transform }
+    fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_figure_color(&self) -> Vector3 {self.color}
 }
 
 pub struct Sphere {
@@ -338,13 +342,9 @@ impl Figure for Sphere {
         let p = self.transform.matrix * point;
         (p).length() - self.r
     }
-    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
-        self.transform.transform_matrix(pos, rot, size);
-    }
-    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
-        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
-        self.color*l
-    }
+    fn get_transform(&self) -> &Transform { &self.transform }
+    fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_figure_color(&self) -> Vector3 {self.color}
 }
 
 
@@ -363,19 +363,14 @@ impl Box {
 }
 impl Figure for Box {
     fn get_distance(&self, point:Vector3) -> f32 {
-        //let p = self.rotate_point(point - self.pos, -1.);
         let p =  self.transform.matrix*point;
         let q = p.abs() - Vector3::new(1., 1., 1.);
         let d = q.max(0.).length() + q.maxcomp().min(0.) - 0.2;
         d
     }
-    fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
-        self.transform.transform_matrix(pos, rot, size);
-    }
-    fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
-        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
-        self.color*l
-    }
+    fn get_transform(&self) -> &Transform { &self.transform }
+    fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_figure_color(&self) -> Vector3 { self.color }
 }
 
 
@@ -427,7 +422,7 @@ impl Camera {
         }
     }
 
-    pub fn get_render_vectors(&self) -> Vec<Vec<Vector3>>{
+    fn get_render_vectors(&self) -> Vec<Vec<Vector3>>{
         let sc = self.get_screen();
         let mut out: Vec<Vec<Vector3>> = vec![];
         let cell_x = sc.i*(self.screen_size.x/self.screen_resolution.0 as f32);
@@ -444,7 +439,22 @@ impl Camera {
         out
     }
 
-    pub fn map(&self, figure: &dyn Figure, light: Vector3) -> image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>> {
+    fn march(&self, dir_vector: Vector3, figure: &dyn Figure) -> (Option<Vector3>, usize) { //точка пересечения(если есть), кол-во итераций
+        let mut ray = Vector3::new(0., 0., 0.);
+        let mut a: Option<Vector3> = None;
+        let mut j: usize = 0;
+        for _k in 0..200 {
+            let p = self.transform.position*ray;
+            let dist = figure.get_distance(p);
+            if dist < 0.01 { a = Some(ray); break; } 
+            else if ray.length() > 300. { a = None ;break; }
+            ray = ray+dir_vector*dist;
+            j += 1;
+        }
+        (a, j)
+    }
+
+    pub fn render(&self, figure: &dyn Figure, light: Vector3) -> image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>> {
         let mut pixels = image::ImageBuffer::from_pixel(self.screen_resolution.0 as u32,
              self.screen_resolution.1 as u32,
               image::Rgba([0,0,0, 255]));
