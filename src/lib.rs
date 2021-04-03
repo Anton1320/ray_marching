@@ -90,9 +90,9 @@ impl Transform {
         self.position.m[0][3] -= pos.x;
         self.position.m[1][3] += pos.y;
         self.position.m[2][3] += pos.z;
-        self.size.m[0][0] -= size.x;
-        self.size.m[1][1] -=size.y;
-        self.size.m[2][2] -= size.z;
+        self.size.m[0][0] += size.x;
+        self.size.m[1][1] += size.y;
+        self.size.m[2][2] += size.z;
         self.rotation = self.rotation * Matrix4x4::new_rotation_matrix(rot, None);
         self.matrix = self.size * self.rotation * self.position;
     }
@@ -284,13 +284,15 @@ impl Folder<'_> {
 
 impl Figure for Folder<'_> {
     fn get_distance(&self, point: Vector3) -> f32 {
-        self.get_closere_object(point).0
+        let p = self.transform.rotation * point;
+        self.get_closere_object(p).0
     }
     fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
         self.transform.transform_matrix(pos, rot, size);
     }
     fn get_color(&self, point: Vector3, light: Vector3) -> Vector3 {
-        self.figures[self.get_closere_object(point).1].get_color(point, light)
+        let p = self.transform.rotation * point;
+        self.figures[self.get_closere_object(p).1].get_color(p, light)
     }
 }
 
@@ -320,9 +322,21 @@ pub struct Sphere {
     pub transform: Transform,
 }
 
+impl Sphere {
+    pub fn new(pos:Vector3, rot: Vector3, radius: f32, color:Vector3) -> Sphere {
+        Sphere {
+            center:pos,
+            r: radius,
+            color: color,
+            transform: Transform::new(pos, rot,Vector3::new(1., 1., 1.)),
+        }
+    }
+}
+
 impl Figure for Sphere {
     fn get_distance(&self, point:Vector3) -> f32 {
-        (point-self.center).length() - self.r
+        let p = self.transform.matrix * point;
+        (p).length() - self.r
     }
     fn change_transform(&mut self, pos:Vector3, rot: Vector3, size: Vector3) {
         self.transform.transform_matrix(pos, rot, size);
@@ -335,9 +349,6 @@ impl Figure for Sphere {
 
 
 pub struct Box {
-    pub pos:Vector3,
-    pub size: Vector3,
-    pub rotation:Vector3,
     pub color: Vector3,
     pub transform: Transform,
 }
@@ -345,9 +356,6 @@ pub struct Box {
 impl Box {
     pub fn new(pos:Vector3, rot: Vector3, size:Vector3, color:Vector3) -> Box {
         Box {
-            pos:pos,
-            rotation:rot,
-            size: size,
             color: color,
             transform: Transform::new(pos, rot, size),
         }
@@ -357,7 +365,7 @@ impl Figure for Box {
     fn get_distance(&self, point:Vector3) -> f32 {
         //let p = self.rotate_point(point - self.pos, -1.);
         let p =  self.transform.matrix*point;
-        let q = p.abs() - self.size;
+        let q = p.abs() - Vector3::new(1., 1., 1.);
         let d = q.max(0.).length() + q.maxcomp().min(0.) - 0.2;
         d
     }
@@ -457,7 +465,6 @@ impl Camera {
                         break;
                     } 
                     else if ray.length() > 300. {break;}
-                    //ray = ray+(self.transform.rotation*render_vectors[i][j])*dist;
                     ray = ray+render_vectors[i][j]*dist;
                 }
             }
