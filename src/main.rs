@@ -32,8 +32,8 @@ fn main() {
         0.5,  
     );
 
-    let light = Vector3::new(0., -3., 2.);
-    
+    //let light = Vector3::new(0., -3., 2.);
+    let light = Vector3::new(0., -10., 0.);
     let mut sphere = Sphere::new(Vector3::new(-3., 0., 0.), Vector3::new(0., 0., 0.), 1.5, Vector3::new(0., 0., 255.));
     //let super_sphere  = SuperSphere {s:sphere};
     let mut cube = Box::new
@@ -90,8 +90,8 @@ fn main() {
 
         window.draw_2d(&event, |context, graphics, _| {
             clear([1.0; 4], graphics);
-            scene.figures[0].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
-            scene.change_transform(Vector3::new(0., 0., 0.), Vector3::new(0.00, 0.1, 0.), Vector3::new(0., 0.0, 0.0));
+            //scene.figures[0].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
+            //scene.change_transform(Vector3::new(0., 0., 0.), Vector3::new(0.00, 0.1, 0.), Vector3::new(0., 0.0, 0.0));
             pixels = cam.render(&scene, light);
             image(&tex, context.transform, graphics);
         }) ;
