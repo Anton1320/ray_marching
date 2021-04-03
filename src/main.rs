@@ -92,7 +92,7 @@ fn main() {
             clear([1.0; 4], graphics);
             scene.figures[0].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
             scene.change_transform(Vector3::new(0., 0., 0.), Vector3::new(0.00, 0.1, 0.), Vector3::new(0., 0.0, 0.0));
-            pixels = cam.map(&scene, light);
+            pixels = cam.render(&scene, light);
             image(&tex, context.transform, graphics);
         }) ;
     }
