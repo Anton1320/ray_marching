@@ -11,12 +11,12 @@ impl Figure for SuperCube {
         self.cube.get_distance(point).max(-self.sphere.get_distance(point))
     }
 }*/
-
+/*
 struct SuperSphere {
     s:Sphere,
 }
 
-/*impl Figure for SuperSphere {
+impl Figure for SuperSphere {
     fn get_distance(&self, point:Vector3) -> f32 {
         let q = ((point+Vector3::new(3., 3., 3.)) % 6.)-Vector3::new(3., 3., 3.);
         self.s.get_distance(q)
@@ -28,7 +28,7 @@ fn main() {
     let mut cam = Camera::new(
         Vector3::new(0., 0., 0.),
         Vector3::new(1., 1., 0.),
-        (300, 300),
+        (200, 200),
         0.5,  
     );
 
