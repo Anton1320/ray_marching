@@ -1,4 +1,4 @@
-use std::ops::{Mul, Rem, Sub, Add, IndexMut};
+use std::ops::{Mul, Rem, Sub, Add};
 extern crate piston_window;
 extern crate image;
 use piston_window::*;
@@ -266,6 +266,9 @@ pub trait Figure {
         let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
         self.get_figure_color()*l
     }
+    fn get_folder_color(&self, point:Vector3) -> Vector3 {
+        point
+    }
 }
 
 pub struct Folder<'a> {
@@ -301,6 +304,9 @@ impl Figure for Folder<'_> {
     fn get_color(&self, point: Vector3, light: Vector3) -> Vector3 {
         let p = self.transform.rotation * point;
         self.figures[self.get_closere_object(p).1].get_color(p, light)
+    }
+    fn get_folder_color(&self, point: Vector3) -> Vector3 {
+        self.figures[self.get_closere_object(point).1].get_figure_color()
     }
 }
 
@@ -443,10 +449,10 @@ impl Camera {
         let mut ray = Vector3::new(0., 0., 0.);
         let mut a: Option<Vector3> = None;
         let mut j: usize = 0;
-        for _k in 0..200 {
+        for _k in 0..300 {
             let p = position*ray;
             let dist = figure.get_distance(p);
-            if dist < 0.01 { a = Some(p); break; } 
+            if dist < 0.00001 { a = Some(p); break; } 
             else if ray.length() > 300. { a = None ;break; }
             ray = ray+dir_vector*dist;
             j += 1;
@@ -465,9 +471,18 @@ impl Camera {
                 pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
                 let march = self.march(render_vectors[i][j], self.transform.position,figure);
                 if let Some(p) = march.0 {
-                    let mut a = figure.get_color(p, light);
-                    let l = march.1 as f32 * 0.5 + p.length();
-                    a = a - Vector3::new(l, l, l);
+
+                    let l_march = self.march((p-light).norm(), Matrix4x4::new_pos_matrix(light), figure);
+                    let mut a = figure.get_folder_color(p) - Vector3::new(150., 150., 150.);
+                    if let Some(q) = l_march.0 {
+                        if (q-p).length() < 0.01 {
+                            a = figure.get_color(p, light);
+                            //a = Vector3::new(255.-(q-p).length()*1000., 255.-(q-p).length()*1000., 255.-(q-p).length()*1000.)
+                        }
+                    }
+
+                    //let l = march.1 as f32 * 0.5 + p.length();
+                    //a = a - Vector3::new(l, l, l);
                     
                     pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
                 }
