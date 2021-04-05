@@ -245,6 +245,21 @@ impl Vector3{
     }
 }
 
+fn ray_march(dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (Option<Vector3>, usize) { //точка пересечения(если есть), кол-во итераций
+    let mut ray = Vector3::new(0., 0., 0.);
+    let mut a: Option<Vector3> = None;
+    let mut j: usize = 0;
+    for _k in 0..300 {
+        let p = position*ray;
+        let dist = figure.get_distance(p);
+        if dist < 0.00001 { a = Some(p); break; } 
+        else if ray.length() > 300. { a = None ;break; }
+        ray = ray+dir_vector*dist;
+        j += 1;
+    }
+    (a, j)
+}
+
 pub trait Figure {
     fn get_distance(&self, point: Vector3) -> f32;
     fn get_transform(&self) -> &Transform;
@@ -445,21 +460,6 @@ impl Camera {
         out
     }
 
-    fn march(&self, dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (Option<Vector3>, usize) { //точка пересечения(если есть), кол-во итераций
-        let mut ray = Vector3::new(0., 0., 0.);
-        let mut a: Option<Vector3> = None;
-        let mut j: usize = 0;
-        for _k in 0..300 {
-            let p = position*ray;
-            let dist = figure.get_distance(p);
-            if dist < 0.00001 { a = Some(p); break; } 
-            else if ray.length() > 300. { a = None ;break; }
-            ray = ray+dir_vector*dist;
-            j += 1;
-        }
-        (a, j)
-    }
-
     pub fn render(&self, figure: &dyn Figure, light: Vector3) -> image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>> {
         let mut pixels = image::ImageBuffer::from_pixel(self.screen_resolution.0 as u32,
              self.screen_resolution.1 as u32,
@@ -469,10 +469,10 @@ impl Camera {
         for i in 0..self.screen_resolution.0 {
             for j in 0..self.screen_resolution.1 {
                 pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
-                let march = self.march(render_vectors[i][j], self.transform.position,figure);
+                let march = ray_march(render_vectors[i][j], self.transform.position,figure);
                 if let Some(p) = march.0 {
 
-                    let l_march = self.march((p-light).norm(), Matrix4x4::new_pos_matrix(light), figure);
+                    let l_march = ray_march((p-light).norm(), Matrix4x4::new_pos_matrix(light), figure);
                     let mut a = figure.get_folder_color(p) - Vector3::new(150., 150., 150.);
                     if let Some(q) = l_march.0 {
                         if (q-p).length() < 0.01 {
