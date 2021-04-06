@@ -245,7 +245,8 @@ impl Vector3{
     }
 }
 
-fn ray_march(dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (Option<Vector3>, usize) { //точка пересечения(если есть), кол-во итераций
+fn ray_march(dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (Option<Vector3>, usize, f32) {
+    //точка пересечения в абсолютных координатах(если есть), кол-во итерацийб длина луча
     let mut ray = Vector3::new(0., 0., 0.);
     let mut a: Option<Vector3> = None;
     let mut j: usize = 0;
@@ -257,11 +258,12 @@ fn ray_march(dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (
         ray = ray+dir_vector*dist;
         j += 1;
     }
-    (a, j)
+    (a, j, ray.length())
 }
 
 pub trait Figure<'a> {
     fn get_distance(&self, point: Vector3) -> f32;
+    //fn get_parent(&self) -> &dyn Figure;
     fn get_transform(&self) -> &Transform;
     fn get_mut_transform(&mut self) -> &mut Transform;
     fn get_figure_color(&self) -> Vector3;
@@ -278,11 +280,9 @@ pub trait Figure<'a> {
         self.get_mut_transform().transform_matrix(pos, rot, size);
     }
     fn get_color(&self, point:Vector3, light: Vector3) -> Vector3 {
-        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.)/3.;
+        //let p = self.get_transform().matrix * point;
+        let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.) / 3.;
         self.get_figure_color()*l
-    }
-    fn get_folder_color(&self, point:Vector3) -> Vector3 {
-        point
     }
 }
 
@@ -298,7 +298,7 @@ impl Folder<'_> {
         let mut a = 0 as usize;
         let mut j = 0 as usize;
         for i in &self.children {
-            let d = i.get_distance(i.get_transform().matrix * p);
+            let d = i.get_distance(p);
             if d < m {
                 m = d;
                 a = j;
@@ -311,18 +311,13 @@ impl Folder<'_> {
 
 impl Figure<'_> for Folder<'_> {
     fn get_distance(&self, point: Vector3) -> f32 {
-        let p = self.transform.rotation * point;
-        self.get_closere_object(p).0
+        self.get_closere_object(point).0
     }
     fn get_transform(&self) -> &Transform { &self.transform }
     fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
     fn get_figure_color(&self) -> Vector3 { Vector3::new(0., 0., 0.) }
     fn get_color(&self, point: Vector3, light: Vector3) -> Vector3 {
-        let p = self.transform.matrix * point;
-        self.children[self.get_closere_object(p).1].get_color(p, light)
-    }
-    fn get_folder_color(&self, point: Vector3) -> Vector3 {
-        self.children[self.get_closere_object(point).1].get_figure_color()
+        self.children[self.get_closere_object(point).1].get_color(self.get_transform().matrix * point, self.get_transform().matrix *light)
     }
 }
 
@@ -394,9 +389,9 @@ impl<'a> Box<'a> {
 }
 impl<'a> Figure<'a> for Box<'a> {
     fn get_distance(&self, point:Vector3) -> f32 {
-        let p =  self.transform.matrix*point;
+        let p = self.transform.matrix*point;
         let q = p.abs() - Vector3::new(1., 1., 1.);
-        let d = q.max(0.).length() + q.maxcomp().min(0.) - 0.2;
+        let d = q.max(0.).length() + q.maxcomp().min(0.);
         d
     }
     fn get_transform(&self) -> &Transform { &self.transform }
@@ -479,18 +474,10 @@ impl Camera {
         for i in 0..self.screen_resolution.0 {
             for j in 0..self.screen_resolution.1 {
                 pixels.put_pixel(i as u32, j as u32, image::Rgba([0, 0, 0, 255]));
-                let march = ray_march(render_vectors[i][j], self.transform.position,figure);
+                let march = ray_march(render_vectors[i][j], self.transform.position, figure);
                 if let Some(p) = march.0 {
-
-                    let l_march = ray_march((p-light).norm(), Matrix4x4::new_pos_matrix(light), figure);
-                    let mut a = figure.get_folder_color(p) - Vector3::new(150., 150., 150.);
-                    if let Some(q) = l_march.0 {
-                        if (q-p).length() < 0.01 {
-                            a = figure.get_color(p, light);
-                            //a = Vector3::new(255.-(q-p).length()*1000., 255.-(q-p).length()*1000., 255.-(q-p).length()*1000.)
-                        }
-                    }
-
+                    let mut a = figure.get_color(p, light);
+                    //a = Vector3::new(255.-march.2*50., 255.-march.2*50., 255.-march.2*50.);
                     //let l = march.1 as f32 * 0.5 + p.length();
                     //a = a - Vector3::new(l, l, l);
                     
