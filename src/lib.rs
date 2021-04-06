@@ -399,6 +399,37 @@ impl<'a> Figure<'a> for Box<'a> {
     fn get_figure_color(&self) -> Vector3 { self.color }
 }
 
+pub struct Torus<'a> {
+    pub color: Vector3,
+    pub transform: Transform,
+    pub w: f32,
+    pub r: f32,
+    pub children: Vec<&'a mut (dyn Figure<'a> + 'a)>,
+}
+
+impl<'a> Torus<'a> {
+    pub fn new(pos:Vector3, rot: Vector3, size:Vector3, r: f32, w: f32, color:Vector3, children: Option<Vec<&'a mut (dyn Figure<'a> + 'a)>>) -> Torus<'a> {
+        let mut a = vec![];
+        if let Some(i) = children { a = i; }
+        Torus {
+            color: color,
+            transform: Transform::new(pos, rot, size),
+            r: r,
+            w: w,
+            children: a,
+        }
+    }
+}
+
+impl<'a> Figure<'a> for Torus<'a> {
+    fn get_distance(&self, point:Vector3) -> f32 {
+        let p = self.transform.matrix*point;
+        ((Vector3::new(p.x, 0., p.z).length() - self.r).powf(2.) + p.y.powf(2.)).sqrt() - self.w
+    }
+    fn get_transform(&self) -> &Transform { &self.transform }
+    fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_figure_color(&self) -> Vector3 { self.color }
+}
 
 struct Screen {
     pos:Vector3, // координата левого верхнего угла
@@ -478,8 +509,8 @@ impl Camera {
                 if let Some(p) = march.0 {
                     let mut a = figure.get_color(p, light);
                     //a = Vector3::new(255.-march.2*50., 255.-march.2*50., 255.-march.2*50.);
-                    //let l = march.1 as f32 * 0.5 + p.length();
-                    //a = a - Vector3::new(l, l, l);
+                    let l = march.1 as f32 * 0.5 + p.length();
+                    a = a - Vector3::new(l, l, l);
                     
                     pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
                 }
