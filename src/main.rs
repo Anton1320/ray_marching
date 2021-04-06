@@ -52,9 +52,12 @@ fn main() {
         children: vec![],
     };
 
+    let mut torus = Torus::new(Vector3::new(0., 2., 0.), Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.),
+    1., 0.4, Vector3::new(0., 255., 0.), None);
+
     let mut scene = Folder {
-        children: vec![&mut cube,  &mut plane, &mut sphere],
-        transform: Transform::new(Vector3::new(0., 0., 0.), Vector3::new(0., 3.14, 0.), Vector3::new(1., 1., 1.)),
+        children: vec![&mut cube,  &mut plane, &mut sphere, &mut torus],
+        transform: Transform::new(Vector3::new(0., 2., 0.), Vector3::new(0., 3.14, 0.), Vector3::new(1., 1., 1.)),
     };
 
     //let mut super_cube = SuperCube { cube: cube, sphere: sphere, color: Vector3::new(255., 255., 1.), };
@@ -91,8 +94,8 @@ fn main() {
             .unwrap();
         window.draw_2d(&event, |context, graphics, _| {
             clear([1.0; 4], graphics);
-            //scene.children[0].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
-            //scene.children[2].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
+            scene.children[0].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
+            scene.children[3].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.1, 0., 0.2), Vector3::new(0., 0.0, 0.0));
             scene.change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.00, 0.1, 0.), Vector3::new(0., 0.0, 0.0));
             pixels = cam.render(&scene, light);
             
