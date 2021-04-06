@@ -83,7 +83,7 @@ impl Transform {
             position: a,
             rotation: b,
             size: c,
-            matrix: b*c*a, 
+            matrix: c*b*a, 
         }
     }
     pub fn transform_matrix(&mut self, pos: Vector3, rot: Vector3, size:Vector3) {
@@ -103,9 +103,9 @@ impl Matrix4x4 {
 
         Matrix4x4 {m: [[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,],[0.,0.,0.,0.,]]}
     }
-    fn new_pos_matrix(pos:Vector3) -> Matrix4x4 {
+    pub fn new_pos_matrix(pos:Vector3) -> Matrix4x4 {
         Matrix4x4{m:
-            [[1., 0., 0., -pos.x],
+            [[1., 0., 0., pos.x],
              [0., 1., 0., pos.y],
              [0., 0., 1., pos.z],
              [0., 0., 0.,   1.]]
@@ -141,7 +141,7 @@ impl Matrix4x4 {
         }
         out
     }
-    pub fn new_size_matrix(size: Vector3) -> Matrix4x4 {
+    fn new_size_matrix(size: Vector3) -> Matrix4x4 {
         Matrix4x4 {
             m:[[size.x, 0., 0., 0.],
              [0., size.y, 0., 0.],
@@ -246,19 +246,21 @@ impl Vector3{
 }
 
 fn ray_march(dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (Option<Vector3>, usize, f32) {
-    //точка пересечения в абсолютных координатах(если есть), кол-во итерацийб длина луча
+    //точка пересечения в абсолютных координатах(если есть), кол-во итераций, длина луча
     let mut ray = Vector3::new(0., 0., 0.);
     let mut a: Option<Vector3> = None;
     let mut j: usize = 0;
+    let mut l = 0.;
     for _k in 0..300 {
         let p = position*ray;
         let dist = figure.get_distance(p);
         if dist < 0.00001 { a = Some(p); break; } 
-        else if ray.length() > 300. { a = None ;break; }
+        else if l > 300. { a = None ;break; }
         ray = ray+dir_vector*dist;
+        l += dist;
         j += 1;
     }
-    (a, j, ray.length())
+    (a, j, l)
 }
 
 pub trait Figure<'a> {
@@ -266,6 +268,8 @@ pub trait Figure<'a> {
     //fn get_parent(&self) -> &dyn Figure;
     fn get_transform(&self) -> &Transform;
     fn get_mut_transform(&mut self) -> &mut Transform;
+    fn get_children(&self) -> &Vec<&'a mut (dyn Figure<'a> + 'a)>;
+    fn get_mut_children(&mut self) -> &mut Vec<&'a mut (dyn Figure<'a> + 'a)>;
     fn get_figure_color(&self) -> Vector3;
     fn get_normal(&self, point: Vector3) -> Vector3 {
         const EPS: f32 = 0.0001;
@@ -284,20 +288,12 @@ pub trait Figure<'a> {
         let l = (self.get_normal(point)*(light-point).norm()+1.5).max(0.) / 3.;
         self.get_figure_color()*l
     }
-}
-
-pub struct Folder<'a> {
-    pub children: Vec<&'a mut (dyn Figure<'a> + 'a)>,
-    pub transform: Transform,
-}
-
-impl Folder<'_> {
     fn get_closere_object(&self, point: Vector3) -> (f32, usize) {
-        let p = self.transform.matrix * point;
+        let p = self.get_transform().matrix * point;
         let mut m = 1000000000.;
         let mut a = 0 as usize;
         let mut j = 0 as usize;
-        for i in &self.children {
+        for i in self.get_children() {
             let d = i.get_distance(p);
             if d < m {
                 m = d;
@@ -309,7 +305,12 @@ impl Folder<'_> {
     }
 }
 
-impl Figure<'_> for Folder<'_> {
+pub struct Folder<'a> {
+    pub children: Vec<&'a mut (dyn Figure<'a> + 'a)>,
+    pub transform: Transform,
+}
+
+impl<'a> Figure<'a> for Folder<'a> {
     fn get_distance(&self, point: Vector3) -> f32 {
         self.get_closere_object(point).0
     }
@@ -319,22 +320,26 @@ impl Figure<'_> for Folder<'_> {
     fn get_color(&self, point: Vector3, light: Vector3) -> Vector3 {
         self.children[self.get_closere_object(point).1].get_color(self.get_transform().matrix * point, self.get_transform().matrix *light)
     }
+    fn get_children(&self) -> &Vec<&'a mut (dyn Figure<'a> + 'a)>{&self.children}
+    fn get_mut_children(&mut self) -> &mut Vec<&'a mut (dyn Figure<'a> + 'a)> { &mut self.children }
 }
 
 pub struct Plane<'a> {
-    pub y: f32,
     pub transform: Transform,
     pub color: Vector3,
     pub children: Vec<&'a mut (dyn Figure<'a> + 'a)>,
 }
 
-impl Figure<'_> for Plane<'_> {
+impl<'a> Figure<'a> for Plane<'a> {
     fn get_distance(&self, point: Vector3) -> f32 {
-        self.y - point.y
+        let p = self.transform.matrix * point;
+        -p.y
     }
     fn get_transform(&self) -> &Transform { &self.transform }
     fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
     fn get_figure_color(&self) -> Vector3 {self.color}
+    fn get_children(&self) -> &Vec<&'a mut (dyn Figure<'a> + 'a)>{&self.children}
+    fn get_mut_children(&mut self) -> &mut Vec<&'a mut (dyn Figure<'a> + 'a)> { &mut self.children }
 }
 
 pub struct Sphere<'a> {
@@ -359,7 +364,7 @@ impl<'a> Sphere<'a> {
     }
 }
 
-impl Figure<'_> for Sphere<'_> {
+impl<'a> Figure<'a> for Sphere<'a> {
     fn get_distance(&self, point:Vector3) -> f32 {
         let p = self.transform.matrix * point;
         (p).length() - self.r
@@ -367,8 +372,9 @@ impl Figure<'_> for Sphere<'_> {
     fn get_transform(&self) -> &Transform { &self.transform }
     fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
     fn get_figure_color(&self) -> Vector3 {self.color}
+    fn get_children(&self) -> &Vec<&'a mut (dyn Figure<'a> + 'a)>{&self.children}
+    fn get_mut_children(&mut self) -> &mut Vec<&'a mut (dyn Figure<'a> + 'a)> { &mut self.children }
 }
-
 
 pub struct Box<'a> {
     pub color: Vector3,
@@ -387,16 +393,19 @@ impl<'a> Box<'a> {
         }
     }
 }
+
 impl<'a> Figure<'a> for Box<'a> {
     fn get_distance(&self, point:Vector3) -> f32 {
         let p = self.transform.matrix*point;
-        let q = p.abs() - Vector3::new(1., 1., 1.);
+        let q = p.abs() - Vector3::new(0.8, 0.8, 0.8);
         let d = q.max(0.).length() + q.maxcomp().min(0.);
-        d
+        d - 0.2
     }
     fn get_transform(&self) -> &Transform { &self.transform }
     fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
     fn get_figure_color(&self) -> Vector3 { self.color }
+    fn get_children(&self) -> &Vec<&'a mut (dyn Figure<'a> + 'a)>{&self.children}
+    fn get_mut_children(&mut self) -> &mut Vec<&'a mut (dyn Figure<'a> + 'a)> { &mut self.children }
 }
 
 pub struct Torus<'a> {
@@ -424,11 +433,14 @@ impl<'a> Torus<'a> {
 impl<'a> Figure<'a> for Torus<'a> {
     fn get_distance(&self, point:Vector3) -> f32 {
         let p = self.transform.matrix*point;
-        ((Vector3::new(p.x, 0., p.z).length() - self.r).powf(2.) + p.y.powf(2.)).sqrt() - self.w
+        let d = ((Vector3::new(p.x, 0., p.z).length() - self.r).powf(2.) + p.y.powf(2.)).sqrt() - self.w;
+        d
     }
     fn get_transform(&self) -> &Transform { &self.transform }
     fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
     fn get_figure_color(&self) -> Vector3 { self.color }
+    fn get_children(&self) -> &Vec<&'a mut (dyn Figure<'a> + 'a)>{&self.children}
+    fn get_mut_children(&mut self) -> &mut Vec<&'a mut (dyn Figure<'a> + 'a)> { &mut self.children }
 }
 
 struct Screen {
@@ -508,8 +520,14 @@ impl Camera {
                 let march = ray_march(render_vectors[i][j], self.transform.position, figure);
                 if let Some(p) = march.0 {
                     let mut a = figure.get_color(p, light);
-                    //a = Vector3::new(255.-march.2*50., 255.-march.2*50., 255.-march.2*50.);
-                    let l = march.1 as f32 * 0.5 + p.length();
+                    let mut l = march.1 as f32 * 0.5 + march.2;
+                    let shadow_march = ray_march((p-light).norm(), Matrix4x4::new_pos_matrix(light), figure);
+                    if let Some(s) = shadow_march.0 {
+                        if figure.get_closere_object(p).1 != figure.get_closere_object(s).1 {
+                            l += 50.;
+                        }
+                    }
+                    
                     a = a - Vector3::new(l, l, l);
                     
                     pixels.put_pixel(i as u32, j as u32, image::Rgba([a.x as u8, a.y as u8, a.z as u8, 255]));
