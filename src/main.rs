@@ -4,36 +4,16 @@ extern crate image;
 use piston_window::*;
 use ray_marching::*;
 
-/*struct SuperCube { sphere: Sphere, cube: Box, color: Vector3,}
-
-impl Figure for SuperCube {
-    fn get_distance(&self, point: Vector3) -> f32 {
-        self.cube.get_distance(point).max(-self.sphere.get_distance(point))
-    }
-}*/
-/*
-struct SuperSphere {
-    s:Sphere,
-}
-
-impl Figure for SuperSphere {
-    fn get_distance(&self, point:Vector3) -> f32 {
-        let q = ((point+Vector3::new(3., 3., 3.)) % 6.)-Vector3::new(3., 3., 3.);
-        self.s.get_distance(q)
-    }
-}*/
-
-
 fn main() {
     let mut cam = Camera::new(
         Vector3::new(0., 0., 0.),
-        Vector3::new(1., 1., 0.),
+        Vector3::new(0.5, 0.5, 0.),
         (200, 200),
         0.5,  
     );
 
     //let light = Vector3::new(0., -3., 2.);
-    let light = Vector3::new(5., -10., 5.);
+    let light = Vector3::new(5., -10., 0.);
     let mut sphere = Sphere::new(Vector3::new(-3., 0., 0.), Vector3::new(0., 0., 0.), 1.5, Vector3::new(0., 0., 255.), None);
     //let super_sphere  = SuperSphere {s:sphere};
     let mut cube = Box::new
@@ -46,8 +26,7 @@ fn main() {
     );
 
     let mut plane = Plane {
-        y: 5.,
-        transform:Transform::new(Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.)),
+        transform:Transform::new(Vector3::new(0., -5., 0.), Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.)),
         color: Vector3::new(255., 0., 0.),
         children: vec![],
     };
@@ -57,7 +36,7 @@ fn main() {
 
     let mut scene = Folder {
         children: vec![&mut cube,  &mut plane, &mut sphere, &mut torus],
-        transform: Transform::new(Vector3::new(0., 2., 0.), Vector3::new(0., 3.14, 0.), Vector3::new(1., 1., 1.)),
+        transform: Transform::new(Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.), Vector3::new(1., 1., 1.)),
     };
 
     //let mut super_cube = SuperCube { cube: cube, sphere: sphere, color: Vector3::new(255., 255., 1.), };
@@ -71,6 +50,8 @@ fn main() {
     window.set_capture_cursor(true);
     window.set_max_fps(60);
     let mut events = window.events;
+    println!("1 {:?}", light);
+    println!("2 {:?}", Matrix4x4::new_pos_matrix(light) * Vector3::new(0.,0.,0.));
     while let Some(event) = events.next(&mut window) {
         //println!("1 {:?}", cam.transform.rotation);
         if let Event::Input(i) = &event{
@@ -96,9 +77,8 @@ fn main() {
             clear([1.0; 4], graphics);
             scene.children[0].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
             scene.children[3].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.1, 0., 0.2), Vector3::new(0., 0.0, 0.0));
-            scene.change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.00, 0.1, 0.), Vector3::new(0., 0.0, 0.0));
+            scene.change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0., 0.1, 0.), Vector3::new(0., 0.0, 0.0));
             pixels = cam.render(&scene, light);
-            
             image(&tex, context.transform, graphics);
         }) ;
         
