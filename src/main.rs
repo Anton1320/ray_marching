@@ -4,6 +4,44 @@ extern crate image;
 use piston_window::*;
 use ray_marching::*;
 
+struct Fractal<'a> {
+    pub color: Vector3,
+    pub transform: Transform,
+    pub children: Vec<&'a mut (dyn Figure<'a> + 'a)>,
+}
+
+impl<'a> Figure<'a> for Fractal<'a> {
+    fn get_distance(&self, point:Vector3) -> f32 {
+        let mut z = point;
+        let mut dr = 1.0;
+        let mut r = 0.0;
+        for _i in 0..5 {
+            r = z.length();
+            if r>5. {break};
+            
+            // convert to polar coordinates
+            let mut theta = (z.z/r).acos();
+            let mut phi = z.y.atan2(z.x);
+            dr =  r.powf(5.)*5.*dr + 1.0;
+            
+            // scale and rotate the point
+            let zr = r.powf(5.);
+            theta = theta*5.;
+            phi = phi*5.;
+            
+            // convert back to cartesian coordinates
+            z = Vector3::new(theta.sin()*phi.cos(), phi.sin()*theta.sin(), theta.cos())*zr;
+            z = z+point;
+	    }
+	    return 0.5*r.log2() *r/dr;
+    }
+    fn get_transform(&self) -> &Transform { &self.transform }
+    fn get_mut_transform(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_figure_color(&self) -> Vector3 {self.color}
+    fn get_children(&self) -> &Vec<&'a mut (dyn Figure<'a> + 'a)>{&self.children}
+    fn get_mut_children(&mut self) -> &mut Vec<&'a mut (dyn Figure<'a> + 'a)> { &mut self.children }
+}
+
 fn main() {
     let mut cam = Camera::new(
         Vector3::new(0., 0., 0.),
@@ -11,7 +49,11 @@ fn main() {
         (200, 200),
         0.5,  
     );
-
+    let f = Fractal{
+        color: Vector3::new(255.,0.,255.),
+         transform: Transform::new(Vector3::new(0., 0., 0.), Vector3::new(0., 0., 0.),Vector3::new(1., 1., 1.)),
+          children: vec![]
+        };
     //let light = Vector3::new(0., -3., 2.);
     let light = Vector3::new(5., -10., 0.);
     let mut sphere = Sphere::new(Vector3::new(-3., 0., 0.), Vector3::new(0., 0., 0.), 1.5, Vector3::new(0., 0., 255.), None);
@@ -50,8 +92,7 @@ fn main() {
     window.set_capture_cursor(true);
     window.set_max_fps(60);
     let mut events = window.events;
-    println!("1 {:?}", light);
-    println!("2 {:?}", Matrix4x4::new_pos_matrix(light) * Vector3::new(0.,0.,0.));
+
     while let Some(event) = events.next(&mut window) {
         //println!("1 {:?}", cam.transform.rotation);
         if let Event::Input(i) = &event{
