@@ -254,8 +254,8 @@ fn ray_march(dir_vector: Vector3, position: Matrix4x4, figure: &dyn Figure) -> (
     for _k in 0..300 {
         let p = position*ray;
         let dist = figure.get_distance(p);
-        if dist < 0.00001 { a = Some(p); break; } 
-        else if l > 300. { a = None ;break; }
+        if dist < 0.0001 { a = Some(p); break; } 
+        else if l > 100. { a = None ;break; }
         ray = ray+dir_vector*dist;
         l += dist;
         j += 1;
@@ -508,6 +508,7 @@ impl Camera {
         out
     }
 
+    
     pub fn render(&self, figure: &dyn Figure, light: Vector3) -> image::ImageBuffer<image::Rgba<u8>, std::vec::Vec<u8>> {
         let mut pixels = image::ImageBuffer::from_pixel(self.screen_resolution.0 as u32,
              self.screen_resolution.1 as u32,
@@ -523,8 +524,8 @@ impl Camera {
                     let mut l = march.1 as f32 * 0.5 + march.2;
                     let shadow_march = ray_march((p-light).norm(), Matrix4x4::new_pos_matrix(light), figure);
                     if let Some(s) = shadow_march.0 {
-                        if figure.get_closere_object(p).1 != figure.get_closere_object(s).1 {
-                            l += 50.;
+                        if figure.get_normal(p) * (light - p) > 0. {
+                            l += (s-p).length()*10.;
                         }
                     }
                     
