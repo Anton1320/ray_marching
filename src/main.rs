@@ -46,7 +46,7 @@ fn main() {
     let mut cam = Camera::new(
         Vector3::new(0., 0., 0.),
         Vector3::new(0.5, 0.5, 0.),
-        (200, 200),
+        (100, 100),
         0.5,  
     );
     let f = Fractal{
@@ -55,7 +55,7 @@ fn main() {
           children: vec![]
         };
     //let light = Vector3::new(0., -3., 2.);
-    let light = Vector3::new(5., -10., 0.);
+    let light = Vector3::new(5., -5., 0.);
     let mut sphere = Sphere::new(Vector3::new(-3., 0., 0.), Vector3::new(0., 0., 0.), 1.5, Vector3::new(0., 0., 255.), None);
     //let super_sphere  = SuperSphere {s:sphere};
     let mut cube = Box::new
@@ -119,7 +119,7 @@ fn main() {
             scene.children[0].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.03, 0.06, 0.09), Vector3::new(0., 0.0, 0.0));
             scene.children[3].change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0.1, 0., 0.2), Vector3::new(0., 0.0, 0.0));
             scene.change_transform(Vector3::new(0.0, 0., 0.), Vector3::new(0., 0.1, 0.), Vector3::new(0., 0.0, 0.0));
-            pixels = cam.render(&scene, light);
+            pixels = cam.render(&f, light);
             image(&tex, context.transform, graphics);
         }) ;
         
